@@ -1,0 +1,100 @@
+From f7f49f1aaee46f1eaccdeda9916d2ffe4d6271f2 Mon Sep 17 00:00:00 2001
+From: Sergio Prado <sergio.prado@toradex.com>
+Date: Fri, 24 Dec 2021 09:02:43 -0300
+Subject: [PATCH] Add support to boot from external sdcard
+
+Signed-off-by: Sergio Prado <sergio.prado@toradex.com>
+---
+ arch/arm/mach-imx/spl.c                   |  8 --------
+ board/toradex/colibri_imx6/colibri_imx6.c | 21 +++++----------------
+ include/configs/colibri_imx6.h            |  2 +-
+ 3 files changed, 6 insertions(+), 25 deletions(-)
+
+diff --git a/arch/arm/mach-imx/spl.c b/arch/arm/mach-imx/spl.c
+index 1a231c67f5ac..a9e61a4b4c31 100644
+--- a/arch/arm/mach-imx/spl.c
++++ b/arch/arm/mach-imx/spl.c
+@@ -30,16 +30,8 @@ __weak int spl_board_boot_device(enum boot_device boot_dev_spl)
+ /* determine boot device from SRC_SBMR1 (BOOT_CFG[4:1]) or SRC_GPR9 register */
+ u32 spl_boot_device(void)
+ {
+-	unsigned int bmode = readl(&src_base->sbmr2);
+ 	u32 reg = imx6_src_get_boot_mode();
+ 
+-	/*
+-	 * Check for BMODE if serial downloader is enabled
+-	 * BOOT_MODE - see IMX6DQRM Table 8-1
+-	 */
+-	if (((bmode >> 24) & 0x03) == 0x01) /* Serial Downloader */
+-		return BOOT_DEVICE_BOARD;
+-
+ 	/*
+ 	 * The above method does not detect that the boot ROM used
+ 	 * serial downloader in case the boot ROM decided to use the
+diff --git a/board/toradex/colibri_imx6/colibri_imx6.c b/board/toradex/colibri_imx6/colibri_imx6.c
+index f77a8a5b62db..811cf3d97ee8 100644
+--- a/board/toradex/colibri_imx6/colibri_imx6.c
++++ b/board/toradex/colibri_imx6/colibri_imx6.c
+@@ -288,26 +288,15 @@ int board_ehci_hcd_init(int port)
+ #endif
+ 
+ #if defined(CONFIG_FSL_ESDHC_IMX) && defined(CONFIG_SPL_BUILD)
+-/* use the following sequence: eMMC, MMC */
++/* use the following sequence: MMC, eMMC */
+ struct fsl_esdhc_cfg usdhc_cfg[CONFIG_SYS_FSL_USDHC_NUM] = {
+-	{USDHC3_BASE_ADDR},
+ 	{USDHC1_BASE_ADDR},
++	{USDHC3_BASE_ADDR},
+ };
+ 
+ int board_mmc_getcd(struct mmc *mmc)
+ {
+-	struct fsl_esdhc_cfg *cfg = (struct fsl_esdhc_cfg *)mmc->priv;
+-	int ret = true; /* default: assume inserted */
+-
+-	switch (cfg->esdhc_base) {
+-	case USDHC1_BASE_ADDR:
+-		gpio_request(GPIO_MMC_CD, "MMC_CD");
+-		gpio_direction_input(GPIO_MMC_CD);
+-		ret = !gpio_get_value(GPIO_MMC_CD);
+-		break;
+-	}
+-
+-	return ret;
++	return true;
+ }
+ 
+ int board_mmc_init(bd_t *bis)
+@@ -324,14 +313,14 @@ int board_mmc_init(bd_t *bis)
+ 	 */
+ 
+ 	switch (reg & 0x3) {
+-	case 0x0:
++	case 0x2:
+ 		imx_iomux_v3_setup_multiple_pads(
+ 			usdhc1_pads, ARRAY_SIZE(usdhc1_pads));
+ 		usdhc_cfg[0].esdhc_base = USDHC1_BASE_ADDR;
+ 		usdhc_cfg[0].sdhc_clk = mxc_get_clock(MXC_ESDHC_CLK);
+ 		gd->arch.sdhc_clk = usdhc_cfg[0].sdhc_clk;
+ 		break;
+-	case 0x2:
++	case 0x0:
+ 		imx_iomux_v3_setup_multiple_pads(
+ 			usdhc3_pads, ARRAY_SIZE(usdhc3_pads));
+ 		usdhc_cfg[0].esdhc_base = USDHC3_BASE_ADDR;
+diff --git a/include/configs/colibri_imx6.h b/include/configs/colibri_imx6.h
+index 212a75016186..2834ca51376a 100644
+--- a/include/configs/colibri_imx6.h
++++ b/include/configs/colibri_imx6.h
+@@ -178,7 +178,7 @@
+ #if defined(CONFIG_ENV_IS_IN_MMC)
+ /* Environment in eMMC, before config block at the end of 1st "boot sector" */
+ #define CONFIG_SYS_MMC_ENV_DEV		0
+-#define CONFIG_SYS_MMC_ENV_PART		1
++#define CONFIG_SYS_MMC_ENV_PART		0
+ #endif
+ 
+ #endif	/* __CONFIG_H */
+-- 
+2.25.1
+
